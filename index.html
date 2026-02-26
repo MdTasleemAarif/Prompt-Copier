@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt Copier</title>
+
+  <style>
+    :root{
+      --bg1:#f7f8ff;
+      --bg2:#eef3ff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:rgba(15,23,42,.12);
+      --shadow: 0 10px 25px rgba(2,6,23,.10);
+      --gap:10px;
+    }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 600px at 20% -10%, var(--bg2), transparent 55%),
+                  radial-gradient(900px 500px at 90% 0%, #fef3ff, transparent 50%),
+                  linear-gradient(180deg, var(--bg1), #ffffff);
+      min-height: 100vh;
+    }
+
+    /* more bottom padding so content doesn't hide behind pager */
+    .wrap{
+      max-width:560px;
+      margin:0 auto;
+      padding:12px 12px 140px;
+    }
+
+    .header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 4px 12px;
+    }
+    .header h1{
+      font-size:16px;
+      margin:0;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .header .meta{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      font-weight:700;
+    }
+
+    /* 3 buttons per row */
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--gap);
+    }
+
+    /* Premium colorful buttons (auto color per image) */
+    .btn{
+      position: relative;
+      width: 100%;
+      border-radius: 18px;
+      padding: 13px 11px 11px;
+      text-align: left;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      overflow: hidden;
+
+      border: 1px solid hsla(var(--h), 70%, 45%, .28);
+      background:
+        radial-gradient(120px 120px at 20% 15%, hsla(var(--h), 90%, 75%, .35), transparent 60%),
+        radial-gradient(140px 140px at 90% 0%, hsla(calc(var(--h) + 40), 90%, 70%, .25), transparent 55%),
+        linear-gradient(180deg, #ffffff 0%, #f7f8ff 100%);
+      box-shadow:
+        0 14px 28px rgba(2,6,23,.10),
+        inset 0 1px 0 rgba(255,255,255,.85);
+
+      transition: transform .10s ease, box-shadow .15s ease, border-color .15s ease, filter .15s ease;
+    }
+
+    .btn::before{
+      content:"";
+      position:absolute;
+      inset:auto -40px -55px auto;
+      width:170px;
+      height:170px;
+      background: radial-gradient(circle at 30% 30%, hsla(var(--h), 95%, 60%, .35), transparent 62%);
+      transform: rotate(18deg);
+      pointer-events:none;
+    }
+
+    .btn::after{
+      content:"";
+      position:absolute;
+      top:-40%;
+      left:-80%;
+      width:55%;
+      height:180%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+      transform: rotate(18deg);
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .btn:active{
+      transform: translateY(1px) scale(.985);
+      border-color: hsla(var(--h), 80%, 45%, .55);
+      box-shadow:
+        0 8px 18px rgba(2,6,23,.10),
+        inset 0 1px 0 rgba(255,255,255,.85);
+      filter: saturate(1.05);
+    }
+
+    .btn:active::after{
+      opacity:1;
+      animation: shine .45s ease;
+    }
+
+    @keyframes shine{
+      from { left:-80%; opacity:0; }
+      30%  { opacity:.35; }
+      to   { left:140%; opacity:0; }
+    }
+
+    .btn-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:6px;
+      position:relative;
+      z-index:1;
+    }
+
+    .btn-title{
+      font-weight: 950;
+      font-size: 13px;
+      letter-spacing: .2px;
+      background: linear-gradient(90deg, hsl(var(--h), 80%, 35%), hsl(calc(var(--h) + 40), 85%, 35%));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .copy-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 9px;
+      border-radius:999px;
+      border:1px solid rgba(15,23,42,.10);
+      background: rgba(255,255,255,.85);
+      box-shadow: 0 6px 14px rgba(2,6,23,.08);
+      font-size:11px;
+      font-weight:900;
+      color: rgba(15,23,42,.85);
+      transition: transform .10s ease, background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .copy-badge span{ font-size:12px; line-height:1; }
+
+    .btn-sub{
+      font-size: 10.5px;
+      color: var(--muted);
+      font-weight: 750;
+      position:relative;
+      z-index:1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* Copied state on button */
+    .btn.copied{
+      border-color: hsla(var(--h), 85%, 40%, .65);
+      filter: saturate(1.1);
+    }
+    .btn.copied .copy-badge{
+      background: hsla(var(--h), 85%, 48%, .16);
+      border-color: hsla(var(--h), 85%, 45%, .35);
+      color: hsl(var(--h), 85%, 28%);
+      transform: scale(1.03);
+    }
+
+    /* Bottom pager bar (colored + always visible) */
+    .pager{
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+
+      background: linear-gradient(90deg, #111827, #1f2937);
+      border-top: 1px solid rgba(255,255,255,.14);
+      box-shadow: 0 -12px 30px rgba(2,6,23,.22);
+
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    }
+
+    .pager-inner{
+      max-width:560px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: nowrap;
+    }
+
+    .pageinfo{
+      flex:1;
+      text-align:center;
+      font-size:12px;
+      color: rgba(255,255,255,.85);
+      font-weight:900;
+      min-width: 110px;
+    }
+
+    .navbtn{
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+      padding:10px 12px;
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .08s ease;
+      white-space: nowrap;
+    }
+    .navbtn:active{ transform: scale(.985); }
+    .navbtn:disabled{ opacity:.45; cursor:not-allowed; }
+
+    .jump{
+      width:74px;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:14px;
+      padding:10px 10px;
+      font-weight:900;
+      font-size:12px;
+      outline:none;
+      background: rgba(255,255,255,.95);
+      text-align:center;
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+    }
+
+    /* ✅ NEW: small GO button for phones */
+    .gobtn{
+      border: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(180deg, #ffffff, #eef2ff);
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+      padding:10px 12px;
+      border-radius: 14px;
+      font-weight: 950;
+      font-size: 12px;
+      color: #0f172a;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .08s ease;
+      white-space: nowrap;
+    }
+    .gobtn:active{ transform: scale(.985); }
+
+    /* Make pager fit on smaller screens */
+    @media (max-width: 380px){
+      .navbtn, .gobtn{ padding:10px 10px; }
+      .jump{ width:64px; }
+      .pageinfo{ min-width: 92px; }
+    }
+
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:86px;
+      transform: translateX(-50%);
+      background: rgba(15,23,42,.92);
+      color:#fff;
+      border:1px solid rgba(255,255,255,.12);
+      padding:10px 12px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 800;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .18s ease;
+      z-index: 10000;
+    }
+    .toast.show{ opacity:1; }
+
+    .state{
+      margin-top:16px;
+      background: #ffffff;
+      border:1px solid var(--border);
+      border-radius: 16px;
+      padding:12px;
+      box-shadow: var(--shadow);
+      color: var(--muted);
+      font-size: 13px;
+      line-height:1.45;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Prompt Copier</h1>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+
+    <div id="grid" class="grid"></div>
+    <div id="state" class="state" style="display:none;"></div>
+  </div>
+
+  <div class="pager">
+    <div class="pager-inner">
+      <button class="navbtn" id="prevBtn">Prev</button>
+      <div class="pageinfo" id="pageInfo">Page 1 / 1</div>
+      <button class="navbtn" id="nextBtn">Next</button>
+
+      <input class="jump" id="jumpInput" type="number" min="1" inputmode="numeric" placeholder="Page" />
+      <button class="gobtn" id="goBtn">Go</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Copied!</div>
+
+  <script>
+    const PAGE_SIZE = 1000;
+
+    const grid = document.getElementById("grid");
+    const toast = document.getElementById("toast");
+    const meta = document.getElementById("meta");
+    const stateBox = document.getElementById("state");
+
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const pageInfo = document.getElementById("pageInfo");
+    const jumpInput = document.getElementById("jumpInput");
+    const goBtn = document.getElementById("goBtn");
+
+    let items = [];
+    let page = 1;
+    let totalPages = 1;
+
+    function showToast(text){
+      toast.textContent = text;
+      toast.classList.add("show");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove("show"), 950);
+    }
+
+    async function copyText(text){
+      try{
+        await navigator.clipboard.writeText(text);
+        return true;
+      }catch(e){
+        try{
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          return ok;
+        }catch(_){
+          return false;
+        }
+      }
+    }
+
+    function normalizeData(raw){
+      let arr = [];
+      if (Array.isArray(raw)) arr = raw;
+      else if (Array.isArray(raw?.data)) arr = raw.data;
+      else if (Array.isArray(raw?.items)) arr = raw.items;
+
+      arr = arr
+        .filter(x => x && typeof x === "object")
+        .map((x, idx) => ({
+          no: (x.no ?? (idx + 1)),
+          image_prompt: (x.image_prompt ?? "")
+        }));
+
+      arr.sort((a,b) => {
+        const an = Number(a.no), bn = Number(b.no);
+        if (!Number.isNaN(an) && !Number.isNaN(bn)) return an - bn;
+        return String(a.no).localeCompare(String(b.no));
+      });
+
+      return arr;
+    }
+
+    function render(){
+      totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+      if (page > totalPages) page = totalPages;
+      if (page < 1) page = 1;
+
+      const start = (page - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      const slice = items.slice(start, end);
+
+      meta.textContent = `${items.length} images • ${PAGE_SIZE}/page`;
+      pageInfo.textContent = `Page ${page} / ${totalPages}`;
+      prevBtn.disabled = (page === 1);
+      nextBtn.disabled = (page === totalPages);
+
+      grid.innerHTML = "";
+      const frag = document.createDocumentFragment();
+
+      slice.forEach((item) => {
+        const no = item.no;
+        const prompt = item.image_prompt || "";
+        const hint = prompt ? prompt.slice(0, 28).trim() : "No prompt";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn";
+        btn.dataset.no = String(no);
+        btn.dataset.prompt = prompt;
+
+        btn.style.setProperty("--h", String((Number(no) * 37) % 360));
+
+        btn.innerHTML = `
+          <div class="btn-top">
+            <div class="btn-title">Image ${no}</div>
+            <div class="copy-badge"><span>⧉</span> Copy</div>
+          </div>
+          <div class="btn-sub">${hint}${prompt ? "…" : ""}</div>
+        `;
+
+        frag.appendChild(btn);
+      });
+
+      grid.appendChild(frag);
+    }
+
+    // Click = copy "image X:- prompt" + show "Copied" state
+    grid.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".btn");
+      if (!btn) return;
+
+      const no = btn.dataset.no || "";
+      const prompt = btn.dataset.prompt || "";
+
+      if (!prompt){
+        showToast(`No prompt for Image ${no}`);
+        return;
+      }
+
+      const textToCopy = `image ${no}:- ${prompt}`;
+      const ok = await copyText(textToCopy);
+
+      if (ok && navigator.vibrate) navigator.vibrate(20);
+
+      const badge = btn.querySelector(".copy-badge");
+      const oldBadgeHTML = badge ? badge.innerHTML : null;
+
+      if (ok) {
+        btn.classList.add("copied");
+        if (badge) badge.innerHTML = `<span>✓</span> Copied`;
+        showToast(`Copied Image ${no}`);
+
+        clearTimeout(btn._copiedTimer);
+        btn._copiedTimer = setTimeout(() => {
+          btn.classList.remove("copied");
+          if (badge && oldBadgeHTML) badge.innerHTML = oldBadgeHTML;
+        }, 900);
+      } else {
+        showToast("Copy failed");
+      }
+    });
+
+    prevBtn.addEventListener("click", () => { page--; render(); });
+    nextBtn.addEventListener("click", () => { page++; render(); });
+
+    function goToPage(){
+      const val = Number(jumpInput.value);
+      if (!val) {
+        showToast("Enter page number");
+        return;
+      }
+      page = Math.min(totalPages, Math.max(1, val));
+      jumpInput.value = "";
+      jumpInput.blur(); // hide mobile keyboard
+      render();
+      showToast(`Page ${page}`);
+    }
+
+    // Still supports keyboard Enter (PC)
+    jumpInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      goToPage();
+    });
+
+    // ✅ GO button for phone
+    goBtn.addEventListener("click", goToPage);
+
+    async function init(){
+      try{
+        stateBox.style.display = "block";
+        stateBox.textContent = "Loading image_prompt.json … (open via http://localhost for copy support)";
+        const res = await fetch("./image_prompt.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load image_prompt.json (${res.status})`);
+        const raw = await res.json();
+        items = normalizeData(raw);
+
+        stateBox.style.display = "none";
+        render();
+      }catch(err){
+        stateBox.style.display = "block";
+        stateBox.textContent =
+          "Error loading image_prompt.json.\n\n" +
+          "Make sure:\n" +
+          "1) image_prompt.json is in SAME folder as index.html\n" +
+          "2) Open via http://localhost (not file://)\n\n" +
+          "Details: " + err.message;
+        meta.textContent = "Load failed";
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
